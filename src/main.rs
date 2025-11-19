@@ -1,20 +1,26 @@
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
 use std::io::{Read, Write};
+pub use rust_http_server::threadpool::ThreadPool;
 
 fn main() {
-    // A single tcp connection with one client
+    // A TCP connection with one client
     let listener = TcpListener::bind("127.0.0.1:7878")
         .expect("Failed to bind address");
 
     println!("Server running at http://127.0.0.1:7878");
 
+    let pool = ThreadPool::new(4);
+
     for stream in listener.incoming() {
-        let mut stream = stream.expect("Failed to accept connection");
-        handle_connection(&mut stream);
+        let stream = stream.unwrap();
+
+        pool.execute(|| {
+            handle_connection(stream);
+        });
     }
 }
 
-fn handle_connection(mut stream: &std::net::TcpStream) {
+fn handle_connection(mut stream: TcpStream) {
     let mut buffer = [0; 1024];
 
     // Read the HTTP request bytes
@@ -23,13 +29,13 @@ fn handle_connection(mut stream: &std::net::TcpStream) {
     let get_request = b"GET / HTTP/1.1";
 
     let response = if buffer.starts_with(get_request) {
-        http_response("Hello, Rust HTTP server!")
+        http_response("Hello world from a Rust HTTP Server!")
     } else {
         not_found()
     };
 
-    stream.write(response.as_bytes()).unwrap();
-    stream.flush().unwrap();
+    stream.write(response.as_bytes()).unwrap(); // Writing data to the stream
+    stream.flush().unwrap(); // Flushing sends the data in the stream
 }
 
 fn http_response(body: &str) -> String {
