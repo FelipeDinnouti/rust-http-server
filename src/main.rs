@@ -1,17 +1,55 @@
 use std::net::{TcpListener, TcpStream};
-use std::io::{Read, Write};
-pub use rust_http_server::threadpool::ThreadPool;
+use std::io::{self, Read, Write};
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::thread;
+ 
+use rust_http_server::threadpool::ThreadPool;
 
 fn main() {
+
+
     // A TCP connection with one client
     let listener = TcpListener::bind("127.0.0.1:7878")
         .expect("Failed to bind address");
+
+    println!("CLI Listener running...");
+
+    let shutdown = Arc::new(AtomicBool::new(false));
+    let shutdown_clone = Arc::clone(&shutdown);
+
+    // Spawn CLI listener
+    thread::spawn(move || {
+        use std::io::Write;
+        let mut input = String::new();
+
+        loop {
+            input.clear();
+            print!("> ");
+            io::stdout().flush().unwrap();
+
+            if io::stdin().read_line(&mut input).is_ok() {
+                if input.trim() == "exit" {
+                    print!("Shutdown keyword");
+                    shutdown_clone.store(true, Ordering::Release);
+                    break;
+                }
+            }
+        }
+
+        io::stdout().flush().unwrap();
+        print!("Shutdown requested...");
+    });
 
     println!("Server running at http://127.0.0.1:7878");
 
     let pool = ThreadPool::new(4);
 
     for stream in listener.incoming() {
+        if shutdown.load(Ordering::Acquire) {
+            println!("Shutting down server...");
+            break;
+        }
+
         let stream = stream.unwrap();
 
         pool.execute(|| {
