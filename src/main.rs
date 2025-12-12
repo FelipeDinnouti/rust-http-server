@@ -3,6 +3,7 @@ use std::io::{Read, Write};
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
  
 use rust_http_server::cli_listener::start_cli_thread;
+use rust_http_server::http_structure::Request;
 use rust_http_server::threadpool::ThreadPool;
 
 fn main() {
@@ -40,8 +41,9 @@ fn main() {
 fn handle_connection(mut stream: TcpStream) {
     let mut buffer = [0; 1024];
 
-    // Read the HTTP request bytes
-    stream.read(&mut buffer).unwrap();
+    // Read the HTTP request bytes and store it in the buffer
+    let size: usize = stream.read(&mut buffer).unwrap();
+    let request: Request = Request::new(&buffer[0..size].to_vec());
 
     let get_request = b"GET / HTTP/1.1";
 

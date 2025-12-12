@@ -10,6 +10,19 @@ pub enum Method {
     DELETE
 }
 
+impl Method {
+    pub fn from_string(s: &str) -> Method {
+        match s {
+            "GET" => return Method::GET,
+            "POST" => return Method::POST,
+            "PUT" => return Method::PUT,
+            "PATCH" => return Method::PATCH,
+            "DELETE" => return Method::DELETE,
+            _ => panic!("INVALID REQUEST HEADER") // TODO: error handling, never use a panic
+        }
+    }
+}
+
 pub struct Request {
     pub method: Method,
     pub path: String,
@@ -24,6 +37,40 @@ pub struct Response {
     pub status_text: String,
     pub headers: Headers,
     pub body: Vec<u8>,
+}
+
+impl Request {
+    pub fn new(data: &Vec<u8>) -> Request {
+        let data_string = String::from_utf8_lossy(&data);
+        let request_parts: Vec<&str> = data_string.split("\r\n").collect();
+
+        // The first line of the request, with the method, path, query and version
+        let request_line: Vec<&str> = request_parts[0].split_whitespace().collect();
+
+        // The headers of the request, a key value pair.
+        let mut headers: HashMap<String, String> = HashMap::new();
+
+        for line in &request_parts[1..] {
+            // End of headers
+            if line.to_string() == "" {
+                break;
+            }
+            // Add header as key value pair in the headers
+            if let Some((key, value)) = line.split_once(":") {
+                headers.insert(key.to_string(), value.to_string());
+            } 
+        }
+
+        let mut received_body: Vec<u8> = Vec::new();
+        
+        // Only set the received body if it received a body (body is optional)
+        if let Some(body) = &request_parts.last() {
+            println!("body: {}", body);
+            received_body = body.as_bytes().to_vec();
+        }
+
+        Request { method: Method::from_string(request_line[0]), path: request_line[1].to_string(), query: Some("QUERY TODO".to_owned()),  version: request_line[2].to_string(), headers: headers, body: received_body }
+    }
 }
 
 impl Response {
