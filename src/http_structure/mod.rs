@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+use std::{collections::HashMap};
 
 pub type Headers = HashMap<String, String>;
+pub type Query = HashMap<String, String>;
 
 pub enum Method {
     GET,
@@ -18,7 +19,7 @@ impl Method {
             "PUT" => return Method::PUT,
             "PATCH" => return Method::PATCH,
             "DELETE" => return Method::DELETE,
-            _ => panic!("INVALID REQUEST HEADER") // TODO: error handling, never use a panic
+            _ => panic!("[FATAL ERROR]: INVALID REQUEST HEADER") // TODO: error handling, never use a panic
         }
     }
 }
@@ -26,7 +27,7 @@ impl Method {
 pub struct Request {
     pub method: Method,
     pub path: String,
-    pub query: Option<String>,
+    pub query: Query,
     pub version: String,
     pub headers: Headers,
     pub body: Vec<u8>
@@ -41,8 +42,8 @@ pub struct Response {
 
 impl Request {
     pub fn new(data: &Vec<u8>) -> Request {
-        let data_string = String::from_utf8_lossy(&data);
-        let request_parts: Vec<&str> = data_string.split("\r\n").collect();
+        let data_string = String::from_utf8_lossy(&data); // Convert the raw bytes into a string
+        let request_parts: Vec<&str> = data_string.split("\r\n").collect(); // Separate the string in each \r\n
 
         // The first line of the request, with the method, path, query and version
         let request_line: Vec<&str> = request_parts[0].split_whitespace().collect();
@@ -69,7 +70,27 @@ impl Request {
             received_body = body.as_bytes().to_vec();
         }
 
-        Request { method: Method::from_string(request_line[0]), path: request_line[1].to_string(), query: Some("QUERY TODO".to_owned()),  version: request_line[2].to_string(), headers: headers, body: received_body }
+        // Extract and separate query from path
+        let path_binding = request_line[1].to_string();
+        let raw_path:  Vec<&str> = path_binding.split("?").collect();
+        let extracted_path: &str = raw_path[0];
+
+        let mut query_map: Query = HashMap::new();
+
+        // Only if there is a query, deconstruct into into the HashMap
+        if raw_path.len() > 1 {
+            let raw_query: &str = raw_path[1];
+            let query_list: Vec<&str> = raw_query.split("&").collect();
+
+            for query_str in query_list {
+                if let Some ((k, v)) = query_str.split_once("=") {
+                    query_map.insert(k.to_string(), v.to_string());
+                }
+            }
+        }
+
+        // This captures all these variables, moving them into a created Request object.
+        return Request { method: Method::from_string(request_line[0]), path: extracted_path.to_string(), query: query_map,  version: request_line[2].to_string(), headers: headers, body: received_body }
     }
 }
 
