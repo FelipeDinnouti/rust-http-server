@@ -10,7 +10,6 @@ fn handle_input(input: &str) -> i8 {
     return 0
 }
 
-
 pub fn start_cli_thread(shutdown_clone: Arc<AtomicBool>) {
     print!("CLI listener thread starting...");
 

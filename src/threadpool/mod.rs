@@ -7,7 +7,7 @@ pub struct ThreadPool {
     sender: Option<mpsc::Sender<Job>>,
 }
 
-impl ThreadPool {
+impl ThreadPool { 
     pub fn new(size: usize) -> ThreadPool {
         assert!(size > 0);
 
