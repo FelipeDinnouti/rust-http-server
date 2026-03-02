@@ -1,0 +1,2 @@
+This documentations are my personal files which I used to understand Rust basics and also this project's structure. This is meant to be an educational project, which I have used to teach myself Rust, and I believe that can be used by other people to learn too.
+The goal is to have some project that feels like a real project, but isn't really something meant for production, but it is meant to look like a production project so we can learn 

@@ -55,7 +55,7 @@ For complex types you really want to copy, explicitly call .clone()
 
 #### Borrowing
 
-Finally, we can understand that move semantics can be pretty annoying sometimes, especially when passing values to functions (the value would be droppec once the function ends, because it's owner would go out of scope)
+Finally, we can understand that move semantics can be pretty annoying sometimes, especially when passing values to functions (the value would be droppec once the function ends, because it's owner would go out of scope), and so the solution for that is using borrowing.
 
 ##### Immutable References (`&T`)
 
@@ -86,24 +86,24 @@ fn append_message(s: &mut String) {
 }
 ```
 
-Important rule on mutable references: 
-
-
 ### Using structs
 
 Structs are first declared with:
-
+```rust
 struct [name] {
 	[member]: [type]
 }
+```
 
 And then implementations are written using
 
+```rust
 impl [name] {
 	fn [function_name]() -> [return_type] {
 
 	}
 }
+```
 
 Direct instantiaton can happen through:
 
@@ -112,6 +112,7 @@ Direct instantiaton can happen through:
 
 So an example would be:
 
+```rust
 struct Bread {
 	type: str,
 	is_whole: bool
@@ -123,6 +124,7 @@ impl struct Bread {
 		Bread {type, is_whole} // Inferred return.
 	}
 }
+```
 
 ## Classes
 

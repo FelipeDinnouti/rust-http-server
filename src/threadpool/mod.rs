@@ -13,27 +13,33 @@ impl ThreadPool {
 
         let (sender, receiver) = mpsc::channel();
 
-        // Arc + Mutex so multiple workers can use receiver safely
+        // Wrap receiver in Arc + Mutex so multiple workers can use it safely
         let receiver = Arc::new(Mutex::new(receiver));
 
+        // Instantiating workers 
         let mut workers = Vec::with_capacity(size);
         for id in 0..size {
+            // Each worker gets a reference to the *same* receiver.
             workers.push(Worker::new(id, Arc::clone(&receiver)));
         }
 
         ThreadPool { workers, sender: Some(sender) }
     }
+
+    // Box and send a job to a worker through the sender object.
     pub fn execute<F>(&self, f: F)
     where
-        F: FnOnce() + Send + 'static,
+        // F is a generic type used in this function to define the kind of function it receives as parameter.
+        F: FnOnce() + Send + 'static, // Send means it can go to other threads, and 'static means it owns all its values (no borrowing)
     {
+        // A box is a smart pointer to something in heap memory, in this case, a function.
         let job = Box::new(f);
         
-        // We borrow the Option and unwrap the reference:
+        // Make sure sender still exists.
         if let Some(sender) = &self.sender {
             sender.send(job).unwrap();
         } else {
-            panic!("ThreadPool has shut down — cannot execute more jobs");
+            panic!("Sender has been dropped, ThreadPool will shut down — cannot execute more jobs");
         }
     }
 }
