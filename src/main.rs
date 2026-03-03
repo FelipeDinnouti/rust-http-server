@@ -6,36 +6,57 @@ use rust_http_server::cli_listener::start_cli_thread;
 use rust_http_server::http_structure::Request;
 use rust_http_server::threadpool::ThreadPool;
 
-fn main() {
-    // A TCP connection with one client
-    let listener = TcpListener::bind("127.0.0.1:7878")
-        .expect("Failed to bind address");
+mod routing;
 
-    println!("CLI Listener running...");
+use routing::{Handler, Router};
 
-    // Channel to communicate shutdown with CLI thread 
-    let shutdown = Arc::new(AtomicBool::new(false));
-    let shutdown_clone = Arc::clone(&shutdown);
+pub struct Server {
+    router: Router,
+}
 
-    start_cli_thread(shutdown_clone);
+impl Server {
 
-    // Starting the server
-    println!("Server running at http://127.0.0.1:7878");
-
-    let pool = ThreadPool::new(4);
-
-    for stream in listener.incoming() {
-        if shutdown.load(Ordering::Acquire) {
-            println!("Shutting down server...");
-            break;
-        }
-
-        let stream = stream.unwrap();
-
-        pool.execute(|| {
-            handle_connection(stream);
-        });
+    fn new() -> Server {
+        Server { Router::new() } 
     }
+
+    fn serve() {
+        // Start listening for TCP connections
+        // A TCP connection with one client
+        let listener = TcpListener::bind("127.0.0.1:7878")
+            .expect("Failed to bind address");
+
+        println!("CLI Listener running...");
+
+        // Channel to communicate shutdown with CLI thread 
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let shutdown_clone = Arc::clone(&shutdown);
+
+        start_cli_thread(shutdown_clone);
+
+        // Starting the server
+        println!("Server running at http://127.0.0.1:7878");
+
+        let pool = ThreadPool::new(4);
+
+        for stream in listener.incoming() {
+            if shutdown.load(Ordering::Acquire) {
+                println!("Shutting down server...");
+                break;
+            }
+
+            let stream = stream.unwrap();
+
+            pool.execute(|| {
+                handle_connection(stream);
+            });
+        }
+    }
+}
+
+
+fn main() {
+    let mut server = Server::new();
 }
 
 fn handle_connection(mut stream: TcpStream) {
