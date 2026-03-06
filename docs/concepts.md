@@ -130,5 +130,6 @@ impl struct Bread {
 
 ### Arc
 
+Atomic reference count - A immutable thread-safe reference to an object, in which reference counting is done atomically.
 
 ### Mutex

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use rust_http_server::http_structure::{Request, Response};
 
 // The Handler trait used to define handler functions used in Routers
 pub trait Handler: Send + Sync + 'static {
@@ -20,7 +21,7 @@ pub struct Router {
 }
 
 impl Router {
-    pub fn new() -> self {
+    pub fn new() -> Router {
         Router {
             routes: HashMap::new(),
         }

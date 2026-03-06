@@ -2,12 +2,16 @@ use std::net::{TcpListener, TcpStream};
 use std::io::{Read, Write};
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
  
-use rust_http_server::cli_listener::start_cli_thread;
-use rust_http_server::http_structure::Request;
-use rust_http_server::threadpool::ThreadPool;
+use crossbeam_channel::{select, unbounded, Receiver};
 
+mod cli_listener;
+mod threadpool;
+mod http_structure;
 mod routing;
 
+use cli_listener::start_cli_thread;
+use threadpool::ThreadPool;
+use http_structure::Request;
 use routing::{Handler, Router};
 
 pub struct Server {
@@ -17,39 +21,56 @@ pub struct Server {
 impl Server {
 
     fn new() -> Server {
-        Server { Router::new() } 
+        Server { router: Router::new() } 
     }
 
-    fn serve() {
+    fn serve(&self) {
         // Start listening for TCP connections
-        // A TCP connection with one client
         let listener = TcpListener::bind("127.0.0.1:7878")
             .expect("Failed to bind address");
 
+        // One way channels between threads - tx is sender, rx is receiver
+        let (stream_tx, stream_rx) = unbounded();
+        let (shutdown_tx, shutdown_rx) = unbounded();   
+
+        start_cli_thread(shutdown_tx);
         println!("CLI Listener running...");
-
-        // Channel to communicate shutdown with CLI thread 
-        let shutdown = Arc::new(AtomicBool::new(false));
-        let shutdown_clone = Arc::clone(&shutdown);
-
-        start_cli_thread(shutdown_clone);
 
         // Starting the server
         println!("Server running at http://127.0.0.1:7878");
 
-        let pool = ThreadPool::new(4);
-
-        for stream in listener.incoming() {
-            if shutdown.load(Ordering::Acquire) {
-                println!("Shutting down server...");
-                break;
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                match stream {
+                    Ok(stream) => {
+                        // Tries to send the stream
+                        if stream_tx.send(stream).is_err() {    
+                            break; // If it failed, sender was dropped.
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Accept error: {}", e);
+                        break;
+                    }
+                }
             }
+        });
 
-            let stream = stream.unwrap();
+        let pool = ThreadPool::new(4);  
 
-            pool.execute(|| {
-                handle_connection(stream);
-            });
+        loop {
+            select! {
+                recv(stream_rx) -> stream => {
+                    let stream = stream.unwrap();
+                    pool.execute(move || {
+                        handle_connection(stream);
+                    })
+                }
+                recv(shutdown_rx) -> _ => { 
+                    println!("Shutdown message received, shutting down...");
+                    break;
+                }
+            }
         }
     }
 }
@@ -57,6 +78,8 @@ impl Server {
 
 fn main() {
     let mut server = Server::new();
+
+    server.serve();
 }
 
 fn handle_connection(mut stream: TcpStream) {
@@ -64,6 +87,8 @@ fn handle_connection(mut stream: TcpStream) {
 
     // Read the HTTP request bytes and store it in the buffer
     let size: usize = stream.read(&mut buffer).unwrap();
+
+    // Parse the request
     let request: Request = Request::new(&buffer[0..size].to_vec());
 
     let get_request = b"GET / HTTP/1.1";

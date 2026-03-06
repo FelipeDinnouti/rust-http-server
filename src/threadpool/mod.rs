@@ -1,26 +1,25 @@
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Arc, Mutex};
+use crossbeam_channel::{unbounded, Sender, Receiver};
 
 type Job = Box<dyn FnOnce() + Send + 'static>;
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
-    sender: Option<mpsc::Sender<Job>>,
+    sender: Option<Sender<Job>>,
 }
 
 impl ThreadPool { 
     pub fn new(size: usize) -> ThreadPool {
         assert!(size > 0);
 
-        let (sender, receiver) = mpsc::channel();
-
-        // Wrap receiver in Arc + Mutex so multiple workers can use it safely
-        let receiver = Arc::new(Mutex::new(receiver));
+        let (sender, receiver) = unbounded::<Job>();
 
         // Instantiating workers 
         let mut workers = Vec::with_capacity(size);
         for id in 0..size {
             // Each worker gets a reference to the *same* receiver.
-            workers.push(Worker::new(id, Arc::clone(&receiver)));
+            let worker_receiver = receiver.clone();
+            workers.push(Worker::new(id, worker_receiver));
         }
 
         ThreadPool { workers, sender: Some(sender) }
@@ -37,9 +36,9 @@ impl ThreadPool {
         
         // Make sure sender still exists.
         if let Some(sender) = &self.sender {
-            sender.send(job).unwrap();
+            sender.send(job).expect("Threadpool receiver dropped.");
         } else {
-            panic!("Sender has been dropped, ThreadPool will shut down — cannot execute more jobs");
+            panic!("Sender has been dropped — cannot execute more jobs");
         }
     }
 }
@@ -51,8 +50,6 @@ impl Drop for ThreadPool {
         drop(self.sender.take());
 
         for worker in &mut self.workers {
-            println!("Shutting down worker {}", worker.id);
-
             if let Some(thread) = worker.thread.take() {
                 thread.join().unwrap(); 
             }
@@ -66,18 +63,14 @@ struct Worker {
 }
 
 impl Worker {
-    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
-        let thread = std::thread::spawn(move || loop {
-            match receiver.lock().unwrap().recv() {
-                Ok(job) => {
-                    println!("Worker {id} got a job, executing.");
-                    job()
-                },
-                Err(_) => {
-                    println!("Worker shutting down.");
-                    break;
-                }
+    fn new(id: usize, receiver: Receiver<Job>) -> Worker {
+        let thread = std::thread::spawn(move || {
+            // 'iter()' blocks untill a job arrives or the channel is closed
+            for job in receiver {
+                println!("Worker {} got a job, executing...", id);
+                job();
             }
+            println!("Worker {} shutting down...", id);
         });
 
         Worker {
